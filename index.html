@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <!-- Viewport (ya lo tenías, se mantiene) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <!-- Color del sistema (barra superior en Android) -->
+    <meta name="theme-color" content="#ffffff">
+
+    <!-- Manifest PWA -->
+    <link rel="manifest" href="manifest.json">
+
+    <title>MEMORIZADOR BÍBLICO</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel para traducir JSX -->
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Estilos base -->
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans selection:bg-blue-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- ICONOS (SVG Inline para evitar dependencias) ---
+        const Icons = {
+            BookOpen: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+            Check: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            RotateCcw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>,
+            Trophy: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17"/><path d="M14 14.66V17"/><path d="M18 2h-5.5a5.5 5.5 0 0 0-5 0H2a10 10 0 0 0 2 13h16a10 10 0 0 0 2-13z"/></svg>,
+            ArrowRight: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
+            Brain: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>,
+            Keyboard: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="14" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/><line x1="6" y1="16" x2="18" y2="16"/></svg>,
+            Filter: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+            PlayCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>,
+            Star: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+            FileText: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+            ChevronRight: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+            List: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+            Search: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+            RefreshCw: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
+            Settings: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+            Download: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+            Upload: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+            Copy: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+            CheckCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            Trash: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        };
+
+        // --- DATA ---
+        const BIBLE_DATA = {
+            seccion_1: {
+                title: "Sección I: Completa el Versículo",
+                shortTitle: "S1: Completar",
+                description: "El jurado lee el inicio, tú completas el final.",
+                cards: [
+                    { id: "s1_1", front: "Porque de tal manera amó Dios al mundo...", back: "...que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, más tenga vida eterna. (Juan 3:16)" },
+                    { id: "s1_2", front: "Jehová es mi pastor...", back: "...nada me faltará. (Salmo 23:1)" },
+                    { id: "s1_3", front: "En el principio creó Dios...", back: "...los cielos y la tierra. (Génesis 1:1)" },
+                    { id: "s1_4", front: "Todo lo puedo...", back: "...en Cristo que me fortalece. (Filipenses 4:13)" },
+                    { id: "s1_5", front: "Lámpara es a mis pies tu palabra...", back: "...y lumbrera a mi camino. (Salmo 119:105)" },
+                    { id: "s1_6", front: "Mas buscad primeramente el reino de Dios y su justicia...", back: "...y todas estas cosas os serán añadidas. (Mateo 6:33)" },
+                    { id: "s1_7", front: "Bienaventurados los de limpio corazón...", back: "...porque ellos verán a Dios. (Mateo 5:8)" },
+                    { id: "s1_8", front: "El Señor es mi luz y mi salvación...", back: "...¿de quién temeré? Jehová es la fortaleza de mi vida; ¿de quién he de atemorizarme? (Salmo 27:1)" },
+                    { id: "s1_9", front: "Porque la paga del pecado es muerte...", back: "...más la dádiva de Dios es vida eterna en Cristo Jesús Señor nuestro. (Romanos 6:23)" },
+                    { id: "s1_10", front: "Confía en Jehová de todo tu corazón...", back: "...y no te apoyes en tu propia prudencia. (Proverbios 3:5)" },
+                    { id: "s1_11", front: "Sed, pues, vosotros perfectos...", back: "...como vuestro Padre que está en los cielos es perfecto. (Mateo 5:48)" },
+                    { id: "s1_12", front: "Jesús le dijo: Yo soy el camino, y la verdad, y la vida...", back: "...nadie viene al Padre, sino por mí. (Juan 14:6)" },
+                    { id: "s1_13", front: "El que habita al abrigo del Altísimo...", back: "...morará bajo la sombra del Omnipotente. (Salmo 91:1)" },
+                    { id: "s1_14", front: "Echa sobre Jehová tu carga...", back: "...y él te sustentará; no dejará para siempre caído al justo. (Salmo 55:22)" },
+                    { id: "s1_15", front: "Deléitate asimismo en Jehová...", back: "...y él te concederá las peticiones de tu corazón. (Salmo 37:4)" },
+                    { id: "s1_16", front: "Guarda tu corazón...", back: "...porque de él mana la vida. (Proverbios 4:23)" },
+                    { id: "s1_17", front: "El que encubre sus pecados no prosperará...", back: "...más el que los confiesa y se aparta alcanzará misericordia. (Proverbios 28:13)" },
+                    { id: "s1_18", front: "Clama a mí, y yo te responderé...", back: "...y te enseñaré cosas grandes y ocultas que tú no conoces. (Jeremías 33:3)" },
+                    { id: "s1_19", front: "Todo tiene su tiempo...", back: "...y todo lo que se quiere debajo del cielo tiene su hora. (Eclesiastés 3:1)" },
+                    { id: "s1_20", front: "Venid a mí todos los que estáis trabajados y cargados...", back: "...y yo os haré descansar. (Mateo 11:28)" },
+                    { id: "s1_21", front: "En todo tiempo ama el amigo...", back: "...y es como un hermano en tiempo de angustia. (Proverbios 17:17)" },
+                    { id: "s1_22", front: "El principio de la sabiduría es...", back: "...el temor de Jehová. (Proverbios 9:10)" },
+                    { id: "s1_23", front: "Porque para mí el vivir es Cristo...", back: "...y el morir es ganancia. (Filipenses 1:21)" },
+                    { id: "s1_24", front: "No temas, porque yo estoy contigo...", back: "...no desmayes, porque yo soy tu Dios que te esfuerzo; siempre te ayudaré, siempre te sustentaré con la diestra de mi justicia. (Isaías 41:10)" },
+                    { id: "s1_25", front: "Y conoceréis la verdad...", back: "...y la verdad os hará libres. (Juan 8:32)" },
+                    { id: "s1_26", front: "Todo lo que respira...", back: "...alabe a JAH. (Salmo 150:6)" },
+                    { id: "s1_27", front: "Porque por gracia sois salvos por medio de la fe...", back: "...y esto no de vosotros, pues es don de Dios. (Efesios 2:8)" },
+                    { id: "s1_28", front: "El ladrón no viene sino para hurtar y matar y destruir...", back: "...yo he venido para que tengan vida, y para que la tengan en abundancia. (Juan 10:10)" },
+                    { id: "s1_29", front: "Jehová peleará por vosotros...", back: "...y vosotros estaréis tranquilos. (Éxodo 14:14)" },
+                    { id: "s1_30", front: "Pero los que esperan a Jehová...", back: "...tendrán nuevas fuerzas; levantarán alas como las águilas; correrán, y no se cansarán; caminarán, y no se fatigarán. (Isaías 40:31)" }
+                ]
+            },
+            seccion_2: {
+                title: "Sección II: Texto de Memoria",
+                shortTitle: "S2: Citas",
+                description: "Te damos la cita, tú escribes el versículo completo.",
+                cards: [
+                    { id: "s2_1", front: "Juan 3:16", back: "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, más tenga vida eterna." },
+                    { id: "s2_2", front: "Salmo 23:1", back: "Jehová es mi pastor; nada me faltará." },
+                    { id: "s2_3", front: "Romanos 8:28", back: "Y sabemos que a los que aman a Dios, todas las cosas les ayudan a bien, esto es, a los que conforme a su propósito son llamados." },
+                    { id: "s2_4", front: "Filipenses 4:13", back: "Todo lo puedo en Cristo que me fortalece." },
+                    { id: "s2_5", front: "Mateo 6:33", back: "Mas buscad primeramente el reino de Dios y su justicia, y todas estas cosas os serán añadidas." },
+                    { id: "s2_6", front: "Salmo 119:105", back: "Lámpara es a mis pies tu palabra, y lumbrera a mi camino." },
+                    { id: "s2_7", front: "Isaías 41:10", back: "No temas, porque yo estoy contigo; no desmayes, porque yo soy tu Dios que te esfuerzo; siempre te ayudaré, siempre te sustentaré con la diestra de mi justicia." },
+                    { id: "s2_8", front: "Proverbios 3:5-6", back: "Fíate de Jehová de todo tu corazón, y no te apoyes en tu propia prudencia. Reconócelo en todos tus caminos, y él enderezará tus veredas." },
+                    { id: "s2_9", front: "Salmo 91:1", back: "El que habita al abrigo del Altísimo morará bajo la sombra del Omnipotente." },
+                    { id: "s2_10", front: "Jeremías 33:3", back: "Clama a mí, y yo te responderé, y te enseñaré cosas grandes y ocultas que tú no conoces." },
+                    { id: "s2_11", front: "Mateo 5:14", back: "Vosotros sois la luz del mundo; una ciudad asentada sobre un monte no se puede esconder." },
+                    { id: "s2_12", front: "Efesios 2:8-9", back: "Porque por gracia sois salvos por medio de la fe; y esto no de vosotros, pues es don de Dios; no por obras, para que nadie se glorie." },
+                    { id: "s2_13", front: "Hebreos 11:1", back: "Es, pues, la fe la certeza de lo que se espera, la convicción de lo que no se ve." },
+                    { id: "s2_14", front: "Salmo 37:4", back: "Deléitate asimismo en Jehová, y él te concederá las peticiones de tu corazón." },
+                    { id: "s2_15", front: "Juan 14:6", back: "Jesús le dijo: Yo soy el camino, y la verdad, y la vida; nadie viene al Padre, sino por mí." },
+                    { id: "s2_16", front: "Romanos 12:2", back: "No os conforméis a este siglo, sino transformaos por medio de la renovación de vuestro entendimiento, para que comprobéis cuál sea la buena voluntad de Dios, agradable y perfecta." },
+                    { id: "s2_17", front: "1 Juan 4:19", back: "Nosotros le amamos a él, porque él nos amó primero." },
+                    { id: "s2_18", front: "Salmo 46:1", back: "Dios es nuestro amparo y fortaleza, nuestro pronto auxilio en las tribulaciones." },
+                    { id: "s2_19", front: "Josué 1:9", back: "Mira que te mando que te esfuerces y seas valiente; no temas ni desmayes, porque Jehová tu Dios estará contigo en dondequiera que vayas." },
+                    { id: "s2_20", front: "2 Corintios 5:7", back: "Porque por fe andamos, no por vista." },
+                    { id: "s2_21", front: "Mateo 11:28", back: "Venid a mí todos los que estáis trabajados y cargados, y yo os haré descansar." },
+                    { id: "s2_22", front: "Romanos 3:23", back: "Por cuanto todos pecaron, y están destituidos de la gloria de Dios." },
+                    { id: "s2_23", front: "Santiago 1:5", back: "Y si alguno de vosotros tiene falta de sabiduría, pídala a Dios, el cual da a todos abundantemente y sin reproche, y le será dada." },
+                    { id: "s2_24", front: "Gálatas 5:22-23", back: "Mas el fruto del Espíritu es amor, gozo, paz, paciencia, benignidad, bondad, fe, mansedumbre, templanza; contra tales cosas no hay ley." },
+                    { id: "s2_25", front: "Juan 8:32", back: "Y conoceréis la verdad, y la verdad os hará libres." },
+                    { id: "s2_26", front: "Salmo 150:6", back: "Todo lo que respira alabe a JAH. Aleluya." },
+                    { id: "s2_27", front: "Proverbios 16:3", back: "Encomienda a Jehová tus obras, y tus pensamientos serán afirmados." },
+                    { id: "s2_28", front: "Isaías 40:31", back: "Pero los que esperan a Jehová tendrán nuevas fuerzas; levantarán alas como las águilas; correrán, y no se cansarán; caminarán, y no se fatigarán." },
+                    { id: "s2_29", front: "1 Tesalonicenses 5:16-18", back: "Estad siempre gozosos. Orad sin cesar. Dad gracias en todo, porque esta es la voluntad de Dios para con vosotros en Cristo Jesús." },
+                    { id: "s2_30", front: "Apocalipsis 22:12", back: "He aquí yo vengo pronto, y mi galardón conmigo, para recompensar a cada uno según sea su obra." }
+                ]
+            },
+            seccion_3: {
+                title: "Sección III: Contexto Bíblico",
+                shortTitle: "S3: Contexto",
+                description: "Explica la situación o contexto del pasaje.",
+                cards: [
+                    { id: "s3_1", front: "¿En qué contexto Jesús calmó la tempestad?", back: "Ocurrió cuando Jesús y sus discípulos cruzaban el mar de Galilea; una gran tempestad se levantó, y Jesús reprendió al viento y al mar, mostrando su poder sobre la naturaleza. (Marcos 4:35-41)" },
+                    { id: "s3_2", front: "¿Por qué fue arrojado Jonás al mar?", back: "Porque desobedeció a Dios al huir a Tarsis en vez de ir a Nínive; la tempestad enviada por Dios hizo que los marineros lo lanzaran al mar, donde fue tragado por un gran pez. (Jonás 1)" },
+                    { id: "s3_3", front: "¿Qué sucedía cuando Pablo y Silas cantaban en la cárcel?", back: "Mientras cantaban himnos a Dios, un terremoto abrió las puertas de la cárcel, y el carcelero creyó en el Señor Jesucristo. (Hechos 16:25-34)" },
+                    { id: "s3_4", front: "¿Por qué Moisés rompió las tablas de la ley?", back: "Porque al descender del monte Sinaí vio al pueblo adorando el becerro de oro y se indignó por su idolatría. (Éxodo 32:19)" },
+                    { id: "s3_5", front: "¿Cuándo fue derribado el muro de Jericó?", back: "Cuando los israelitas marcharon alrededor de la ciudad durante siete días, y al sonar las trompetas el séptimo día, los muros cayeron. (Josué 6)" },
+                    { id: "s3_6", front: "¿Qué hacía Elías en el monte Carmelo?", back: "Desafió a los profetas de Baal para demostrar quién era el Dios verdadero; oró, y fuego del cielo consumió su sacrificio. (1 Reyes 18)" },
+                    { id: "s3_7", front: "¿Cuál fue el contexto de la oración de Daniel en el foso de los leones?", back: "Daniel fue echado al foso por orar a Dios a pesar del decreto del rey Darío que prohibía hacerlo; Dios cerró la boca de los leones. (Daniel 6)" },
+                    { id: "s3_8", front: "¿Por qué fue encarcelado José en Egipto?", back: "Porque fue falsamente acusado por la esposa de Potifar de intentar abusar de ella. (Génesis 39)" },
+                    { id: "s3_9", front: "¿Por qué David no mató a Saúl cuando tuvo la oportunidad?", back: "Porque respetó que Saúl era el ungido de Jehová y no quiso poner su mano contra él. (1 Samuel 24)" },
+                    { id: "s3_10", front: "¿Qué hacía Nehemías en Jerusalén?", back: "Reconstruía los muros de Jerusalén y animaba al pueblo a perseverar a pesar de la oposición. (Nehemías 2-6)" },
+                    { id: "s3_11", front: "¿Qué ocurrió en el monte de la transfiguración?", back: "Jesús se transfiguró delante de Pedro, Jacobo y Juan; su rostro resplandeció y aparecieron Moisés y Elías hablando con Él. (Mateo 17:1-8)" },
+                    { id: "s3_12", front: "¿Qué pasó cuando Pedro negó a Jesús?", back: "Negó tres veces conocer a Jesús antes de que cantara el gallo, cumpliendo la palabra del Señor. (Mateo 26:69-75)" },
+                    { id: "s3_13", front: "¿Por qué fue destruida Sodoma y Gomorra?", back: "Por su gran pecado e inmoralidad; Jehová hizo llover fuego y azufre sobre ellas. (Génesis 19)" },
+                    { id: "s3_14", front: "¿Qué enseñó Jesús en la parábola del hijo pródigo?", back: "Que Dios recibe con amor al pecador arrepentido, simbolizado en el hijo que vuelve al padre. (Lucas 15:11-32)" },
+                    { id: "s3_15", front: "¿Cuál era la misión de Juan el Bautista?", back: "Preparar el camino del Señor, llamando al arrepentimiento y bautizando en el Jordán. (Mateo 3)" },
+                    { id: "s3_16", front: "¿Por qué lloró Jesús en Betania?", back: "Porque vio el dolor de Marta y María por la muerte de Lázaro, antes de resucitarlo. (Juan 11:35)" },
+                    { id: "s3_17", front: "¿Por qué fue destruido el templo de Jerusalén?", back: "Por el juicio de Dios debido a la desobediencia del pueblo; cumplió las profecías de Jeremías. (2 Reyes 25)" },
+                    { id: "s3_18", front: "¿Qué hizo Abraham cuando Dios le pidió a su hijo Isaac?", back: "Obedeció y estuvo dispuesto a ofrecerlo en sacrificio, pero Dios proveyó un carnero en su lugar. (Génesis 22)" },
+                    { id: "s3_19", front: "¿Qué ocurrió en Pentecostés?", back: "El Espíritu Santo descendió sobre los discípulos, y comenzaron a hablar en otras lenguas. (Hechos 2)" },
+                    { id: "s3_20", front: "¿Por qué fue castigado Ananías y Safira?", back: "Porque mintieron al Espíritu Santo acerca del dinero de la venta de una propiedad. (Hechos 5:1-11)" },
+                    { id: "s3_21", front: "¿Qué mensaje trajo Natán a David después de su pecado con Betsabé?", back: "Le reveló su pecado y el juicio que vendría sobre su casa, provocando el arrepentimiento de David. (2 Samuel 12)" },
+                    { id: "s3_22", front: "¿Qué hizo Noé después del diluvio?", back: "Construyó un altar y ofreció sacrificios de gratitud a Dios. (Génesis 8:20)" },
+                    { id: "s3_23", front: "¿Por qué fue llamado Abraham \"amigo de Dios\"?", back: "Por su fe y obediencia a Dios en todas las pruebas. (Santiago 2:23)" },
+                    { id: "s3_24", front: "¿Qué pidió Salomón a Dios cuando fue hecho rey?", back: "Pidió sabiduría para gobernar al pueblo de Dios. (1 Reyes 3:9)" },
+                    { id: "s3_25", front: "¿Qué sucedió cuando Eliseo oró por el siervo que temía al ejército sirio?", back: "Dios abrió los ojos del siervo, y vio el monte lleno de carros y gente de a caballo de fuego. (2 Reyes 6:17)" },
+                    { id: "s3_26", front: "¿Qué ocurrió cuando Pedro predicó el día de Pentecostés?", back: "Tres mil personas creyeron y fueron bautizadas. (Hechos 2:41)" },
+                    { id: "s3_27", front: "¿Por qué fue apedreado Esteban?", back: "Por testificar valientemente de Cristo ante el concilio, acusándolos de resistir al Espíritu Santo. (Hechos 7)" },
+                    { id: "s3_28", front: "¿Qué hizo Jesús con el joven rico?", back: "Le dijo que vendiera todo lo que tenía y lo siguiera, pero el joven se fue triste por sus muchas posesiones. (Mateo 19:16-22)" },
+                    { id: "s3_29", front: "¿Qué significa el sueño de Nabucodonosor de la estatua?", back: "Representa los reinos de la tierra y la venida del reino eterno de Dios. (Daniel 2)" },
+                    { id: "s3_30", front: "¿Qué promesa dio Jesús antes de ascender al cielo?", back: "Que enviaría al Espíritu Santo y que estaría con sus discípulos todos los días hasta el fin del mundo. (Mateo 28:20; Hechos 1:8-9)" }
+                ]
+            },
+            seccion_4: {
+                title: "Sección IV: Personajes Bíblicos",
+                shortTitle: "S4: Personajes",
+                description: "Identifica al personaje basado en la descripción.",
+                cards: [
+                    { id: "s4_1", front: "Fue el primer hombre creado por Dios.", back: "Adán; Génesis 2:7" },
+                    { id: "s4_2", front: "Fue la primera mujer, creada de una costilla del hombre.", back: "Eva; Génesis 2:21-22" },
+                    { id: "s4_3", front: "Construyó un arca por mandato de Dios para salvar a su familia y los animales del diluvio.", back: "Noé; Génesis 6:13-22" },
+                    { id: "s4_4", front: "Dios lo llamó para salir de su tierra y hacer de él una gran nación.", back: "Abraham; Génesis 12:1-3" },
+                    { id: "s4_5", front: "Hijo de Abraham y Sara, fue el hijo de la promesa.", back: "Isaac; Génesis 21:1-3" },
+                    { id: "s4_6", front: "Engañó a su hermano para obtener la bendición de su padre y luego fue llamado Israel.", back: "Jacob; Génesis 27:35-36; 32:28" },
+                    { id: "s4_7", front: "Fue vendido por sus hermanos, llegó a ser gobernador en Egipto y salvó a su familia del hambre.", back: "José; Génesis 45:4-8" },
+                    { id: "s4_8", front: "Dios lo usó para liberar al pueblo de Israel de la esclavitud en Egipto.", back: "Moisés; Éxodo 3:10" },
+                    { id: "s4_9", front: "Fue hermana de Moisés y profetisa, quien cantó al Señor tras cruzar el mar Rojo.", back: "María (Miriam); Éxodo 15:20-21" },
+                    { id: "s4_10", front: "Sucesor de Moisés y guio al pueblo en la conquista de Canaán.", back: "Josué; Josué 1:1-9" },
+                    { id: "s4_11", front: "Fue la mujer que escondió a los espías israelitas en Jericó.", back: "Rahab; Josué 2:1-6" },
+                    { id: "s4_12", front: "Fue la jueza y profetisa que dirigió a Israel en tiempos de guerra.", back: "Débora; Jueces 4:4-9" },
+                    { id: "s4_13", front: "Derribó un templo filisteo con sus propias manos al final de su vida.", back: "Sansón; Jueces 16:28-30" },
+                    { id: "s4_14", front: "Fue una mujer moabita que se mantuvo fiel a su suegra Noemí.", back: "Rut; Rut 1:16-17" },
+                    { id: "s4_15", front: "Fue un joven que sirvió al sacerdote Elí y luego se convirtió en profeta.", back: "Samuel; 1 Samuel 3:1-10" },
+                    { id: "s4_16", front: "Fue el primer rey de Israel, pero desobedeció a Dios y fue rechazado.", back: "Saúl; 1 Samuel 15:26-28" },
+                    { id: "s4_17", front: "Fue un joven pastor que mató al gigante Goliat y llegó a ser rey de Israel.", back: "David; 1 Samuel 17:45-50" },
+                    { id: "s4_18", front: "Fue el profeta que confrontó al rey Acab y desafió a los profetas de Baal.", back: "Elías; 1 Reyes 18:21-39" },
+                    { id: "s4_19", front: "Pidió sabiduría a Dios y fue el rey más sabio de Israel.", back: "Salomón; 1 Reyes 3:5-12" },
+                    { id: "s4_20", front: "Fue tragado por un gran pez por huir del mandato de Dios.", back: "Jonás; Jonás 1:17" },
+                    { id: "s4_21", front: "Fue una joven hebrea que llegó a ser reina de Persia y salvó a su pueblo.", back: "Ester; Ester 4:13-16" },
+                    { id: "s4_22", front: "Fue arrojado al foso de los leones por no dejar de orar a Dios.", back: "Daniel; Daniel 6:10-23" },
+                    { id: "s4_23", front: "Fue el profeta que lloró por Jerusalén y escribió Lamentaciones.", back: "Jeremías; Jeremías 1:4-10; Lamentaciones 1:1" },
+                    { id: "s4_24", front: "Bautizó a Jesús en el río Jordán.", back: "Juan el Bautista; Mateo 3:13-17" },
+                    { id: "s4_25", front: "Fue un pescador que negó a Jesús tres veces, pero luego fue restaurado.", back: "Pedro; Mateo 26:75; Juan 21:15-17" },
+                    { id: "s4_26", front: "Fue conocido como el discípulo amado.", back: "Juan; Juan 13:23; 21:20-24" },
+                    { id: "s4_27", front: "Traicionó a Jesús por treinta piezas de plata.", back: "Judas Iscariote; Mateo 26:14-16" },
+                    { id: "s4_28", front: "Persiguió a los cristianos, pero luego se convirtió en apóstol de Cristo.", back: "Pablo (Saulo de Tarso); Hechos 9:1-18" },
+                    { id: "s4_29", front: "Fue madre de Jesús y halló gracia delante de Dios.", back: "María; Lucas 1:30-31" },
+                    { id: "s4_30", front: "Resucitó a los cuatro días de haber muerto, por el poder de Jesús.", back: "Lázaro; Juan 11:43-44" }
+                ]
+            }
+        };
+
+        // --- ALGORITMO DE COMPARACIÓN ---
+        const computeDiff = (userText, correctText) => {
+            const normalize = (s) => s.replace(/[.,;()]/g, '').toLowerCase().trim();
+            const userWords = userText.trim().split(/\s+/).filter(w => w);
+            const correctWords = correctText.trim().split(/\s+/).filter(w => w);
+
+            const n = userWords.length;
+            const m = correctWords.length;
+
+            const dp = Array(n + 1).fill(0).map(() => Array(m + 1).fill(0));
+
+            for (let i = 1; i <= n; i++) {
+                for (let j = 1; j <= m; j++) {
+                    if (normalize(userWords[i - 1]) === normalize(correctWords[j - 1])) {
+                        dp[i][j] = dp[i - 1][j - 1] + 1;
+                    } else {
+                        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                    }
+                }
+            }
+
+            const diff = [];
+            let i = n;
+            let j = m;
+
+            while (i > 0 || j > 0) {
+                if (i > 0 && j > 0 && normalize(userWords[i - 1]) === normalize(correctWords[j - 1])) {
+                    diff.unshift({ type: 'match', value: userWords[i - 1] });
+                    i--;
+                    j--;
+                } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                    diff.unshift({ type: 'missing', value: correctWords[j - 1] });
+                    j--;
+                } else {
+                    diff.unshift({ type: 'extra', value: userWords[i - 1] });
+                    i--;
+                }
+            }
+            return diff;
+        };
+
+        const DiffViewer = ({ input, correct }) => {
+            const diff = computeDiff(input, correct);
+            return (
+                <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 shadow-inner max-h-60 overflow-y-auto">
+                        <p className="text-xs text-gray-500 font-bold mb-2 uppercase tracking-wider sticky top-0 bg-gray-50 pb-2 border-b border-gray-100 w-full z-10">Tu respuesta (Análisis):</p>
+                        <div className="flex flex-wrap gap-x-1.5 gap-y-2 text-lg leading-relaxed">
+                            {diff.map((part, index) => {
+                                if (part.type === 'match') {
+                                    return <span key={index} className="text-green-700 font-medium">{part.value}</span>;
+                                } else if (part.type === 'missing') {
+                                    return <span key={index} className="bg-blue-100 text-blue-700 font-bold px-1.5 rounded border border-blue-200" title="Te faltó esta palabra">[{part.value}]</span>;
+                                } else {
+                                    return <span key={index} className="bg-red-50 text-red-600 font-bold line-through decoration-red-400 px-1 rounded border border-red-100 opacity-70" title="Palabra extra o incorrecta">{part.value}</span>;
+                                }
+                            })}
+                        </div>
+                    </div>
+                    <div className="p-4 bg-green-50 rounded-xl border border-green-200 shadow-sm">
+                        <p className="text-xs text-green-700 font-bold mb-1 uppercase tracking-wider">Respuesta Correcta:</p>
+                        <p className="text-gray-800 text-lg leading-relaxed">{correct}</p>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- COMPONENTE PRINCIPAL ---
+        function BibleTrainer() {
+            // Estado y Vistas
+            const [view, setView] = useState('dashboard');
+            const [selectedDeckKey, setSelectedDeckKey] = useState(null);
+            const [sessionMode, setSessionMode] = useState('ranked');
+            const [activeCards, setActiveCards] = useState([]);
+            const [currentCardIndex, setCurrentCardIndex] = useState(0);
+            const [syllabusTab, setSyllabusTab] = useState('seccion_1');
+            const [flipped, setFlipped] = useState(false);
+            const [inputAnswer, setInputAnswer] = useState('');
+            const [progress, setProgress] = useState({});
+            
+            // Settings State
+            const [backupCode, setBackupCode] = useState('');
+            const [importCode, setImportCode] = useState('');
+            const [importStatus, setImportStatus] = useState('idle');
+
+            // Cargar datos locales al inicio
+            useEffect(() => {
+                const savedProgress = localStorage.getItem('bible_trainer_progress');
+                if (savedProgress) {
+                    try {
+                        setProgress(JSON.parse(savedProgress));
+                    } catch (e) {
+                        console.error("Error al cargar progreso local", e);
+                    }
+                }
+            }, []);
+
+            // Guardar datos locales cada vez que cambie el progreso
+            useEffect(() => {
+                localStorage.setItem('bible_trainer_progress', JSON.stringify(progress));
+            }, [progress]);
+
+            // Acciones
+            const openDeckMenu = (key) => {
+                setSelectedDeckKey(key);
+                setView('deck-menu');
+            };
+
+            const startSession = (mode) => {
+                if (!selectedDeckKey) return;
+                const fullDeck = BIBLE_DATA[selectedDeckKey].cards;
+                
+                let cardsToPlay = [];
+                if (mode === 'all') {
+                    cardsToPlay = [...fullDeck];
+                } else {
+                    cardsToPlay = fullDeck.filter(card => progress[card.id] !== 'mastered');
+                }
+
+                if (cardsToPlay.length === 0) {
+                    alert("¡Felicidades! Ya has dominado todas las tarjetas de esta sección.");
+                    return;
+                }
+
+                setActiveCards(cardsToPlay);
+                setCurrentCardIndex(0);
+                setSessionMode('ranked');
+                setFlipped(false);
+                setInputAnswer('');
+                setView('study');
+            };
+
+            const startPractice = (cardId) => {
+                if (!selectedDeckKey) return;
+                const deck = BIBLE_DATA[selectedDeckKey];
+                const card = deck.cards.find(c => c.id === cardId);
+                
+                if (card) {
+                    setActiveCards([card]);
+                    setCurrentCardIndex(0);
+                    setSessionMode('practice');
+                    setFlipped(false);
+                    setInputAnswer('');
+                    setView('study');
+                }
+            };
+
+            const saveResult = (status) => {
+                if (sessionMode === 'ranked') {
+                    const currentCard = activeCards[currentCardIndex];
+                    setProgress(prev => ({ ...prev, [currentCard.id]: status }));
+                    nextCard();
+                }
+            };
+
+            const nextCard = () => {
+                setFlipped(false);
+                setInputAnswer('');
+                if (currentCardIndex < activeCards.length - 1) {
+                    setCurrentCardIndex(prev => prev + 1);
+                } else {
+                    setView('finished');
+                }
+            };
+
+            const resetPracticeCard = () => {
+                setFlipped(false);
+                setInputAnswer('');
+            };
+
+            const exitPractice = () => {
+                setView('card-selector');
+            };
+
+            const resetSectionProgress = () => {
+                if (!selectedDeckKey) return;
+                
+                const confirmReset = window.confirm(
+                    `¿Estás seguro de que quieres reiniciar TODO el progreso de "${BIBLE_DATA[selectedDeckKey].title}"?\n\nEsta acción no se puede deshacer.`
+                );
+
+                if (confirmReset) {
+                    const newProgress = { ...progress };
+                    const deckCards = BIBLE_DATA[selectedDeckKey].cards;
+                    
+                    // Remove progress for cards in this section
+                    deckCards.forEach(card => {
+                        delete newProgress[card.id];
+                    });
+
+                    setProgress(newProgress);
+                    alert("Progreso de la sección reiniciado correctamente.");
+                }
+            };
+
+            const getDeckStats = (key) => {
+                const deck = BIBLE_DATA[key];
+                const total = deck.cards.length;
+                const mastered = deck.cards.filter(c => progress[c.id] === 'mastered').length;
+                return { total, mastered, percent: Math.round((mastered / total) * 100) };
+            };
+
+            // Backup Functions
+            const generateBackup = () => {
+                const code = JSON.stringify(progress);
+                setBackupCode(code);
+                navigator.clipboard.writeText(code);
+                alert("¡Código copiado al portapapeles!");
+            };
+
+            const importBackup = () => {
+                try {
+                    const parsed = JSON.parse(importCode);
+                    setProgress(parsed);
+                    setImportStatus('success');
+                    setImportCode('');
+                    setTimeout(() => setImportStatus('idle'), 3000);
+                } catch (e) {
+                    console.error("Error import", e);
+                    setImportStatus('error');
+                }
+            };
+
+            return (
+                <div className="max-w-3xl mx-auto p-4 md:p-6 min-h-screen">
+                    {/* Header */}
+                    <header className="flex items-center justify-between mb-8 pb-4 border-b border-gray-200">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-600 p-2 rounded-lg text-white">
+                                <Icons.BookOpen size={24} />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-900 leading-none">Entrenador Bíblico</h1>
+                                <p className="text-sm text-gray-500 mt-1">Memorización de precisión</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {view !== 'dashboard' && (
+                                <button 
+                                onClick={() => setView('dashboard')}
+                                className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1 bg-white px-3 py-1.5 rounded-full border shadow-sm"
+                                >
+                                <Icons.RotateCcw size={14} /> Inicio
+                                </button>
+                            )}
+                            {view === 'dashboard' && (
+                                <button 
+                                onClick={() => setView('settings')}
+                                className="p-2 text-gray-400 hover:text-gray-700 bg-white rounded-full border border-transparent hover:border-gray-200 transition-all"
+                                title="Configuración y Respaldo"
+                                >
+                                <Icons.Settings size={20} />
+                                </button>
+                            )}
+                        </div>
+                    </header>
+
+                    {/* VISTA: DASHBOARD */}
+                    {view === 'dashboard' && (
+                        <div className="grid gap-6 animate-in fade-in duration-500">
+                            <div className="bg-blue-50 border border-blue-100 rounded-xl p-5">
+                                <h2 className="text-lg font-semibold text-blue-800 mb-2">Bienvenido</h2>
+                                <p className="text-blue-700 text-sm">Selecciona una sección para practicar o revisa el temario completo.</p>
+                            </div>
+
+                            <button 
+                                onClick={() => setView('syllabus')}
+                                className="w-full bg-white p-4 rounded-xl shadow-sm border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-indigo-100 text-indigo-600 p-2 rounded-lg">
+                                        <Icons.FileText size={20} />
+                                    </div>
+                                    <div className="text-left">
+                                        <h3 className="font-bold text-gray-900">Temario Completo</h3>
+                                        <p className="text-sm text-gray-500">Lee y estudia todas las preguntas y respuestas</p>
+                                    </div>
+                                </div>
+                                <Icons.ChevronRight className="text-gray-300 group-hover:text-indigo-500 transition-colors" />
+                            </button>
+
+                            <div className="grid md:grid-cols-2 gap-4 mt-2">
+                                {Object.entries(BIBLE_DATA).map(([key, data]) => {
+                                    const stats = getDeckStats(key);
+                                    return (
+                                        <button 
+                                            key={key} 
+                                            onClick={() => openDeckMenu(key)}
+                                            className="group text-left bg-white p-5 rounded-xl shadow-sm border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all relative overflow-hidden flex flex-col"
+                                        >
+                                            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <h3 className="font-bold text-lg text-gray-900 mb-1">{data.title}</h3>
+                                            <p className="text-sm text-gray-500 mb-4 h-10 line-clamp-2">{data.description}</p>
+                                            
+                                            <div className="flex items-center justify-between mt-auto w-full">
+                                                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                                    <Icons.Trophy size={14} className="text-yellow-600"/>
+                                                    <span>{stats.mastered} / {stats.total}</span>
+                                                </div>
+                                                <div className="bg-blue-50 text-blue-600 p-2 rounded-full group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                                    <Icons.ArrowRight size={20} />
+                                                </div>
+                                            </div>
+                                            <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-100">
+                                                <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${stats.percent}%` }}></div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: SETTINGS */}
+                    {view === 'settings' && (
+                        <div className="animate-in fade-in duration-300 max-w-xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+                                <div className="p-6 border-b border-gray-100">
+                                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                        <Icons.Settings size={20} className="text-gray-400" />
+                                        Configuración y Respaldo
+                                    </h2>
+                                    <p className="text-sm text-gray-500 mt-1">Gestiona tu progreso para no perder tus avances.</p>
+                                </div>
+                                <div className="p-6 space-y-8">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Icons.Download size={18} className="text-blue-600" />
+                                            <h3 className="font-bold text-gray-800">Exportar Progreso (Guardar)</h3>
+                                        </div>
+                                        <p className="text-sm text-gray-600 mb-3">
+                                            Si cambias de celular, copia este código y guárdalo.
+                                        </p>
+                                        <button onClick={generateBackup} className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl border border-blue-200 transition-all flex items-center justify-center gap-2">
+                                            <Icons.Copy size={18} /> Generar y Copiar Código
+                                        </button>
+                                        {backupCode && <div className="mt-2 p-3 bg-gray-100 rounded text-xs text-gray-500 break-all font-mono">{backupCode.substring(0, 50)}... (Código copiado)</div>}
+                                    </div>
+                                    <div className="border-t border-gray-100"></div>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Icons.Upload size={18} className="text-amber-600" />
+                                            <h3 className="font-bold text-gray-800">Importar Progreso (Restaurar)</h3>
+                                        </div>
+                                        <textarea value={importCode} onChange={(e) => { setImportCode(e.target.value); setImportStatus('idle'); }} placeholder="Pega tu código aquí..." className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-amber-500 outline-none mb-3" rows={3} />
+                                        <button onClick={importBackup} disabled={!importCode} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                            <Icons.CheckCircle size={18} /> Restaurar Progreso
+                                        </button>
+                                        {importStatus === 'success' && <p className="mt-3 text-sm text-green-600 font-bold text-center">¡Progreso restaurado correctamente!</p>}
+                                        {importStatus === 'error' && <p className="mt-3 text-sm text-red-600 font-bold text-center">Error: El código no es válido.</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: MENÚ DE MAZO */}
+                    {view === 'deck-menu' && selectedDeckKey && (
+                        <div className="max-w-xl mx-auto animate-in zoom-in-95 duration-300">
+                            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+                                <div className="bg-gray-50 p-6 border-b border-gray-100">
+                                    <h2 className="text-xl font-bold text-gray-900">{BIBLE_DATA[selectedDeckKey].title}</h2>
+                                    <p className="text-gray-500 text-sm mt-1">Elige tu modo de estudio</p>
+                                </div>
+                                <div className="p-6 grid gap-4">
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Progreso Oficial</div>
+                                    <button onClick={() => startSession('all')} className="flex items-center p-4 border-2 border-transparent bg-blue-50 hover:bg-blue-100 hover:border-blue-200 rounded-xl transition-all group">
+                                        <div className="bg-blue-200 text-blue-700 p-3 rounded-full mr-4"><Icons.PlayCircle size={24} /></div>
+                                        <div className="text-left"><h3 className="font-bold text-blue-900">Repaso General</h3><p className="text-sm text-blue-700">Todas las tarjetas en orden.</p></div>
+                                    </button>
+                                    <button onClick={() => startSession('pending')} className="flex items-center p-4 border-2 border-transparent bg-amber-50 hover:bg-amber-100 hover:border-amber-200 rounded-xl transition-all group">
+                                        <div className="bg-amber-200 text-amber-800 p-3 rounded-full mr-4"><Icons.Filter size={24} /></div>
+                                        <div className="text-left"><h3 className="font-bold text-amber-900">Solo Pendientes</h3><p className="text-sm text-amber-800">Solo las que no dominas.</p></div>
+                                    </button>
+                                    <div className="my-2 border-t border-dashed border-gray-300"></div>
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Práctica Libre</div>
+                                    <button onClick={() => setView('card-selector')} className="flex items-center p-4 border-2 border-transparent bg-purple-50 hover:bg-purple-100 hover:border-purple-200 rounded-xl transition-all group">
+                                        <div className="bg-purple-200 text-purple-700 p-3 rounded-full mr-4"><Icons.List size={24} /></div>
+                                        <div className="text-left"><h3 className="font-bold text-purple-900">Elegir Tarjeta Específica</h3><p className="text-sm text-purple-700">Practicar individualmente.</p></div>
+                                    </button>
+                                    <div className="my-2 border-t border-dashed border-gray-300"></div>
+                                    <div className="text-xs font-bold text-red-400 uppercase tracking-widest mb-1">Gestión</div>
+                                    <button onClick={resetSectionProgress} className="flex items-center p-4 border-2 border-red-100 bg-red-50 hover:bg-red-100 hover:border-red-200 rounded-xl transition-all group">
+                                        <div className="bg-red-200 text-red-700 p-3 rounded-full mr-4"><Icons.Trash size={24} /></div>
+                                        <div className="text-left"><h3 className="font-bold text-red-900">Reiniciar Sección</h3><p className="text-sm text-red-700">Borrar progreso de esta sección.</p></div>
+                                    </button>
+                                </div>
+                                <div className="p-4 bg-gray-50 text-center border-t border-gray-100">
+                                    <button onClick={() => setView('dashboard')} className="text-gray-500 hover:text-gray-800 text-sm font-medium">Cancelar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: SELECCIONAR TARJETA */}
+                    {view === 'card-selector' && selectedDeckKey && (
+                        <div className="animate-in fade-in duration-300 max-w-2xl mx-auto">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-xl font-bold text-gray-900">Elige una tarjeta</h2>
+                                <button onClick={() => setView('deck-menu')} className="text-sm text-gray-500 hover:text-gray-800">Volver</button>
+                            </div>
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="p-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                                    <Icons.Search size={16} className="text-gray-400 ml-2" />
+                                    <input type="text" placeholder="Buscar..." className="bg-transparent w-full p-2 outline-none text-sm" />
+                                </div>
+                                <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100">
+                                    {BIBLE_DATA[selectedDeckKey].cards.map((card, idx) => (
+                                        <button key={card.id} onClick={() => startPractice(card.id)} className="w-full text-left p-4 hover:bg-purple-50 transition-colors flex items-center gap-4 group">
+                                            <span className="text-xs font-bold text-gray-400 w-6 text-center">#{idx + 1}</span>
+                                            <div className="flex-1">
+                                                <p className="text-gray-900 font-medium text-sm group-hover:text-purple-900">{card.front}</p>
+                                            </div>
+                                            <Icons.ArrowRight size={16} className="text-gray-300 group-hover:text-purple-400" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: ESTUDIO (JUEGO) */}
+                    {view === 'study' && (
+                        <div className="max-w-2xl mx-auto">
+                            <div className="mb-4 flex items-center justify-between text-sm text-gray-500">
+                                <span>
+                                    {selectedDeckKey && BIBLE_DATA[selectedDeckKey].title}
+                                    {sessionMode === 'practice' && <span className="ml-2 bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold border border-purple-200">Práctica</span>}
+                                </span>
+                                <span>{sessionMode === 'ranked' ? `Tarjeta ${currentCardIndex + 1} de ${activeCards.length}` : 'Tarjeta Individual'}</span>
+                            </div>
+                            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden min-h-[400px] flex flex-col relative">
+                                {sessionMode === 'practice' && <div className="absolute top-0 right-0 bg-purple-500 text-white text-[10px] uppercase font-bold px-3 py-1 rounded-bl-xl shadow-sm z-20">Sin Guardar</div>}
+                                <div className="p-8 md:p-10 flex-1 flex flex-col">
+                                    <div className="mb-8">
+                                        <h3 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2">Pregunta / Cita</h3>
+                                        <div className="text-2xl font-medium text-gray-900 leading-snug">{activeCards[currentCardIndex].front}</div>
+                                    </div>
+                                    {!flipped ? (
+                                        <div className="space-y-4 mt-auto">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 mb-2 uppercase flex items-center gap-2">
+                                                    <Icons.Keyboard size={14} /> Escribe tu respuesta exacta:
+                                                </label>
+                                                <textarea className="w-full p-4 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px] text-lg text-gray-700 resize-none bg-gray-50" placeholder="Escribe aquí..." value={inputAnswer} onChange={(e) => setInputAnswer(e.target.value)} autoFocus />
+                                            </div>
+                                            <button onClick={() => setFlipped(true)} disabled={inputAnswer.length < 3} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-lg shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                                <Icons.Brain size={20} /> Comprobar Respuesta
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6 mt-auto">
+                                            <DiffViewer input={inputAnswer} correct={activeCards[currentCardIndex].back} />
+                                            {sessionMode === 'ranked' ? (
+                                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                                    <button onClick={() => saveResult('learning')} className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-red-100 bg-red-50 text-red-700 font-bold hover:bg-red-100 hover:border-red-200 transition-colors"><Icons.X size={20} /> Repasar</button>
+                                                    <button onClick={() => saveResult('mastered')} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700 shadow-md transition-all"><Icons.Check size={20} /> ¡Perfecto!</button>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                                    <button onClick={resetPracticeCard} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-md transition-all"><Icons.RefreshCw size={20} /> Repetir</button>
+                                                    <button onClick={exitPractice} className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-700 font-bold hover:bg-gray-50 transition-colors"><Icons.List size={20} /> Elegir otra</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: TEMARIO */}
+                    {view === 'syllabus' && (
+                        <div className="animate-in fade-in duration-300">
+                            <div className="mb-6">
+                                <h2 className="text-xl font-bold text-gray-900 mb-4">Temario de Estudio</h2>
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                    {Object.entries(BIBLE_DATA).map(([key, data]) => (
+                                        <button key={key} onClick={() => setSyllabusTab(key)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${syllabusTab === key ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>{data.shortTitle}</button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="divide-y divide-gray-100">
+                                    {BIBLE_DATA[syllabusTab].cards.map((card, idx) => (
+                                        <div key={card.id} className="p-5 hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-start gap-3">
+                                                <span className="text-xs font-bold text-gray-400 mt-1 min-w-[24px]">#{idx + 1}</span>
+                                                <div>
+                                                    <p className="font-semibold text-gray-900 mb-2">{card.front}</p>
+                                                    <p className="text-gray-600 leading-relaxed text-sm bg-green-50 p-3 rounded-lg border border-green-100 w-full">{card.back}</p>
+                                                    {progress[card.id] === 'mastered' && <div className="mt-2 flex items-center gap-1 text-xs text-green-600 font-medium"><Icons.Check size={12} /> <span>Dominada</span></div>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VISTA: FINALIZADO */}
+                    {view === 'finished' && (
+                        <div className="max-w-md mx-auto text-center animate-in zoom-in-95 duration-300 pt-10">
+                            <div className="bg-yellow-100 text-yellow-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><Icons.Star size={40} /></div>
+                            <h2 className="text-3xl font-bold text-gray-900 mb-2">¡Sesión Terminada!</h2>
+                            <p className="text-gray-600 mb-8">Has completado todas las tarjetas. ¡Sigue así!</p>
+                            <div className="space-y-3">
+                                <button onClick={() => setView('dashboard')} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md transition-all">Volver al Menú</button>
+                                <button onClick={() => openDeckMenu(selectedDeckKey)} className="w-full py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-bold transition-all">Repasar otra vez</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BibleTrainer />);
+    </script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js");
+  }
+</body>
+</html>
